@@ -14,6 +14,8 @@ from torchvision.utils import make_grid
 import numpy as np
 import matplotlib.pyplot as plt
 
+from utils import DATA_PATH
+
 
 class ImageNet_1k(Dataset):
 
@@ -75,7 +77,7 @@ def imshow(X, AX, title=''):
   plt.show()
 
 
-def get_dataloader(data_path, batch_size=100, shuffle=False):
-  dataset = ImageNet_1k(root=os.path.join(data_path, 'imagenet-1k'))
+def get_dataloader(batch_size=100, shuffle=False):
+  dataset = ImageNet_1k(root=DATA_PATH / 'imagenet-1k')
   dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, pin_memory=False, num_workers=0)
   return dataloader

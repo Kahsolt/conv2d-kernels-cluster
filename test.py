@@ -2,21 +2,18 @@
 # Author: Armit
 # Create Time: 2022/09/27 
 
-import os
-from argparse import ArgumentParser
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from model import get_model, MODELS
-from data import get_dataloader, normalize, imshow
-from util import device
+from model import get_model
+from data import *
+from utils import *
 
 
-def pgd(model, images, labels, eps=0.03, alpha=0.001, steps=40, element_wise=True):
+def pgd(model:Module, images:Tensor, labels:Tensor, eps:float=0.03, alpha:float=0.001, steps:int=40, element_wise:bool=True):
   images = images.clone().detach()
   labels = labels.clone().detach()
 
@@ -50,7 +47,7 @@ def pgd(model, images, labels, eps=0.03, alpha=0.001, steps=40, element_wise=Tru
   return adv_images
 
 
-def do_test(model, dataloader, atk=False, show=False) -> tuple:
+def do_test(model:Module, dataloader:DataLoader, atk:bool=False, show:bool=False) -> tuple:
   ''' Clean Accuracy, Remnant Accuracy, Attack Success Rate, Prediction Change Rate '''
 
   total, correct, rcorrect, changed = 0, 0, 0, 0
@@ -99,49 +96,33 @@ def do_test(model, dataloader, atk=False, show=False) -> tuple:
   ]
 
 
-def test(args):
+def test(args, model:nn.Module=None):
   ''' Model '''
-  print('[Ckpt] use pretrained weights from torchvision/torchhub')
-  model = get_model(args.model).to(device)
+  model = model or get_model(args.model)
 
-  ''' Model '''
+  ''' Ckpt '''
+  fp = LOG_PATH / f'{args.name}.pth'
+  if fp.exists():
+    print(f'>> loading weights from fp')
+    ckpt = torch.load(fp, map_location=device)
+    model.load_state_dict(ckpt)
+
   if args.ckpt:
-    print(f'>> loading chpt from {args.ckpt}')
-    ckpt = torch.load(args.ckpt)
+    print(f'>> loading weights from {args.ckpt}')
+    ckpt = torch.load(args.ckpt, map_location=device)
     model.load_state_dict(ckpt)
 
   ''' Data '''
-  dataloader = get_dataloader(args.data_path, args.batch_size, shuffle=args.shuffle)
+  dataloader = get_dataloader(args.batch_size, shuffle=args.shuffle)
   
   ''' Test '''
-  acc, racc, asr, pcr = do_test(model, dataloader, atk=args.attack, show=args.show)
+  acc, racc, asr, pcr = do_test(model, dataloader, atk=args.atk, show=args.show_atk)
   print(f'Clean Accuracy:         {acc:.2%}')
-  if args.attack:
+  if args.atk:
     print(f'Remnant Accuracy:       {racc:.2%}')
     print(f'Prediction Change Rate: {pcr:.2%}')
     print(f'Attack Success Rate:    {asr:.2%}')
 
 
 if __name__ == '__main__':
-  parser = ArgumentParser()
-  parser.add_argument('-M', '--model', default='resnet18', choices=MODELS, help='model to attack')
-  parser.add_argument('--ckpt', default=None, help='path to ckpt file')
-  
-  parser.add_argument('--attack', action='store_true')
-  parser.add_argument('--eps',   type=float, default=0.03)
-  parser.add_argument('--alpha', type=float, default=0.001)
-  parser.add_argument('--steps', type=int, default=10)
-  parser.add_argument('--show', action='store_true')
-  
-  parser.add_argument('-B', '--batch_size', type=int, default=64)
-  parser.add_argument('--shuffle', action='store_true')
-  parser.add_argument('--data_path', default='data', help='folder path to downloaded dataset')
-  parser.add_argument('--out_path', default='out', help='folder path to local trained model weights and logs')
-  args = parser.parse_args()
-
-  if args.ckpt:
-    assert os.path.isfile(args.ckpt)
-    name = os.path.basename(args.ckpt)
-    args.model = name.split('_')[0]
-
-  test(args)
+  test(get_args())
